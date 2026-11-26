@@ -1,100 +1,169 @@
 # Lean Run
 
-**Fastest time to accepted delivery for coding agents.**
+Acceptance-first execution for coding agents. On a three-phase report task, it cut wall time by 48% while both arms passed acceptance on the first try.
 
 **English** | [简体中文](README.zh-CN.md)
 
-Lean Run is a small execution skill for OpenCode, Codex, Claude Code, and similar agents. It cuts ceremony, not scope: fewer redundant reads, fewer repeat runs, fewer hand-offs — while keeping the requirements matrix that prevents rework.
+![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)
+![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue.svg)
 
-## Why
+## Overview
 
-Most agent slowdowns are not "thinking" — they are turns. Every extra turn re-reads the context and waits for a tool. But optimizing turns alone produces fast drafts that get rejected: missing template sections, no figures, unfilled placeholders, or a local result where the task requires a real run.
+Lean Run is a Markdown skill for OpenCode, Codex, Claude Code, and similar agents. It adds four controls to a task: an acceptance contract, a requirements matrix, per-phase budgets, and a delivery gate.
 
-Lean Run optimizes the only metric that matters: **time to an accepted deliverable**.
+The target metric is time to accepted delivery.
 
-## What it does
+## Problem
 
-- **Requirements matrix first.** Every deliverable, template section, figure, identity field, external run, and submission limit gets a `requirement | source | evidence | status` row. No row, no done.
-- **Four lanes.** L0 answer, L1 single-file, L2 multi-file, L3 irreversible or formal deliverable with external validation. Heavy process only where it pays.
-- **Delivery gate.** Parses the template, renders pages, checks figures/sections/placeholders, and runs a mechanical PDF checker.
-- **BLOCKED protocol.** If hardware, an account, a license, or a real-machine run is unavailable, mark the row BLOCKED and stop. Unattended agents write `BLOCKED.md` and deliver only the independent parts.
-- **Budget precedence.** A budget is a ceiling, not a target. Exhausted budget + incomplete matrix = BLOCKED report, not silent grinding.
-- **Measurement.** Tracks turns and step time; the benchmark log records first-pass acceptance, so rework counts against speed.
+Agent tasks lose time in three places:
 
-### Large tasks
+1. Repeated context reads on every turn.
+2. Acceptance criteria discovered after the artifact is built.
+3. Step caps reached with a partial deliverable.
 
-Budgets are per phase, not per task. At 80% of a phase budget, checkpoint. If the phase is short, split it, promote the lane, or extend once with a written reason; if the harness step cap is reached, write `HANDOFF.md` and resume. Overruns are allowed with a record; silent grinding and incomplete delivery are not. Stress-tested with a 6-turn budget: [`benchmarks/2026-11-26-budget.md`](benchmarks/2026-11-26-budget.md).
+Each one leads to rework. Rework costs more than a deliberate first pass.
 
-## Install (OpenCode)
+## Workflow
+
+```mermaid
+flowchart LR
+  A[Task + template] --> B[Acceptance contract]
+  B --> C[Requirements matrix]
+  C --> D[Lane + phase budget]
+  D --> E[Recon]
+  E --> F[Batched execution]
+  F --> G[Delivery gate]
+  G --> H{All rows PASS?}
+  H -- yes --> I[Deliver]
+  H -- no --> J[Fix / BLOCKED / HANDOFF]
+```
+
+1. **Acceptance contract.** Capture deliverables, template, figures, identity fields, external runs, and submission limits.
+2. **Requirements matrix.** Each row has a source, evidence, and status. The task is complete when every row is PASS.
+3. **Lane and phase budget.** L0 through L3; budgets are per phase; checkpoint at 80%.
+4. **Template-first recon.** `template_spec.py` reads DOCX headings, placeholders, and image count.
+5. **Batched execution.** Independent calls run together; expensive artifacts are cached.
+6. **Delivery gate.** `delivery_check.py` checks ordered headings, figures, placeholders, values, and Unicode; a rendered-page review follows.
+7. **Handoff.** Step caps produce `HANDOFF.md`; missing external dependencies produce `BLOCKED.md`.
+
+## Latest A/B result
+
+Task: three phases — normalized CSV + tests, five-sheet Excel workbook + chart, five-page PDF + three figures.
+Method: same model and harness, two fresh subagents, acceptance criteria fixed before the run, independent judge.
+
+| Metric | Control | Lean | Delta |
+|---|---:|---:|---:|
+| Wall time | 10.71 min | 5.53 min | **−5.18 min (−48%)** |
+| Model turns | 49 | 25 | −24 (−49%) |
+| Tool calls | 71 | 42 | −29 (−41%) |
+| Reasoning tokens | 42,953 | 20,571 | −52% |
+| Cache reads | 3,288,320 | 876,800 | −73% |
+| Tests | 54 | 34 | both pass |
+| First-pass acceptance | yes | yes | equal |
+
+Both arms produced a five-sheet workbook, five-page PDF, and three figures; the same independent judge passed both. See [`benchmarks/2026-11-26-latest.md`](benchmarks/2026-11-26-latest.md).
+
+Historical runs and the budget stress test are in [`benchmarks/2026-11-26.md`](benchmarks/2026-11-26.md) and [`benchmarks/2026-11-26-budget.md`](benchmarks/2026-11-26-budget.md).
+
+## Features
+
+| Area | Behavior |
+|---|---|
+| Acceptance | Contract + requirements matrix with evidence |
+| Lanes | L0 answer, L1 single file, L2 multi-file, L3 irreversible/formal deliverable |
+| Budgets | Per phase; 80% checkpoint; one split or extension with a written reason |
+| Delivery | Template parser, PDF checker, rendered-page review |
+| External runs | Missing hardware/account/license → BLOCKED; no local substitute |
+| Measurement | Turns, step time, first-pass acceptance |
+
+## Install
+
+### OpenCode
 
 ```powershell
-# 0. optional tools (PDF/DOCX checks)
 python -m pip install -r requirements.txt
-
-# 1. skill
 Copy-Item -Recurse -Force .\skills\lean-run "$HOME\.config\opencode\skills\lean-run"
-
-# 2. command
 Copy-Item -Force .\commands\lean.md "$HOME\.config\opencode\commands\lean.md"
-
-# 3. global rules: merge AGENTS.example.md into
-#    $HOME\.config\opencode\AGENTS.md
+# Merge AGENTS.example.md into $HOME\.config\opencode\AGENTS.md
 ```
 
-If the destination directory already exists, `Copy-Item -Recurse` can create a nested `lean-run\lean-run`; copy the contents instead or remove the old directory first.
+Open a new session. `/lean <task>` forces the skill.
 
-Restart the session or open a new one. `/lean <task>` forces the lean path; the skill also auto-triggers on multi-file, formal-deliverable, and external-run tasks.
+If the destination directory exists, `Copy-Item -Recurse` can create `lean-run\lean-run`; copy the contents or remove the old directory first.
 
-### Other agents
+### Codex / Claude Code
 
-- **Codex / Claude Code:** copy `skills/lean-run` into the agent's skills directory and merge `AGENTS.example.md` into the project or global instruction file. The skill is plain Markdown; only `measure.py` is OpenCode-specific.
+Copy `skills/lean-run` into the agent's skills directory and merge `AGENTS.example.md` into its instruction file. `measure.py` reads OpenCode's SQLite database.
 
-## Usage
+## Quickstart
 
 ```text
-/lean Add CSV export to the report page
+/lean Build a three-phase order report: normalized CSV, Excel workbook with a chart, and a five-page PDF.
 ```
 
-The agent states the lane, writes the requirements matrix, then works. For a document deliverable, it runs the delivery gate before claiming completion.
+The agent starts with:
 
-## Delivery checker
-
-```bash
-# 1. derive headings/placeholders/images from the template
-python skills/lean-run/template_spec.py answer_template.docx
-
-# 2. mechanical gate
-python skills/lean-run/delivery_check.py answer.pdf \
-  --min-pages 2 \
-  --heading "Problem" --heading "Method" --heading "Results" \
-  --text "42.0" --min-images 2 --forbid "________"
+```text
+Lane: L2
+ACCEPT: 22 rows
+DONE: 0/22 PASS
+Phase 1  normalize + tests     budget 8
+Phase 2  Excel + chart         budget 8
+Phase 3  PDF + 3 figures       budget 8
 ```
 
-On PowerShell, use backticks for line continuation or put the command on one line.
+It then works through the phases and returns the matrix with evidence.
 
-It catches missing or out-of-order sections, missing figures, leftover placeholders, page-count issues, absent key results, and broken Unicode. Visual inspection is still required for template and layout quality. Image count covers embedded raster images; for vector figures, add a caption `--text` check or verify visually. `template_spec.py` turns the template into the check arguments, which is the step that most directly prevents the round-3 failure.
+## Budget model
 
-## Benchmark (author-measured, n=3)
+A phase that exceeds its budget has three allowed outcomes:
 
-Times below are to the **first artifact**, not to acceptance. Round 3 is shown for cost context only; it is **not** a speed claim.
+1. Split into a smaller phase with its own matrix subset.
+2. Extend once with a written reason and a new budget.
+3. Hand off with `HANDOFF.md` when the harness step cap is reached.
 
-| Round | Task | Control | Lean | First-pass acceptance |
-|---|---|---:|---:|---|
-| 1 | CSV normalization + tests | 19 turns / 1.97 min | 8 / 0.86 min | both yes |
-| 2 | Excel reconciliation, 5 sheets | 19 / 3.68 min | 9 / 1.32 min | both yes |
-| 3 | QUBO recommendation + formal PDF | 80 / 10.87 min (two runs, step cap) | 24 / 3.09 min | both no* |
+Silent grinding and partial delivery are rejected. Missing external dependencies produce `BLOCKED.md`.
 
-\* Round 3 was technically correct but failed the delivery contract: the first PDF did not use the provided template and had no figures; the control also needed a follow-up. The rebuild cost is not included in the 24 turns. This is why Lean Run now has a requirements matrix and a delivery gate; **the new gate has not yet been re-validated on round 3**. The lesson: a fast draft that is rejected is not a win.
+Count model turns from the harness or session stats. When no counter is available, use tool calls and wall time as an `estimated` proxy with a 1.5× margin.
 
-Caveats: single machine, one model, small sample. Treat the numbers as directional, not a guarantee. See [`benchmarks/2026-11-26.md`](benchmarks/2026-11-26.md) for details.
+## Repository layout
 
-## Design principles
+```text
+.
+├── AGENTS.example.md
+├── commands/lean.md
+├── skills/lean-run/
+│   ├── SKILL.md
+│   ├── measure.py
+│   ├── delivery_check.py
+│   └── template_spec.py
+├── benchmarks/
+│   ├── 2026-11-26.md
+│   ├── 2026-11-26-budget.md
+│   └── 2026-11-26-latest.md
+├── requirements.txt
+├── README.md
+└── README.zh-CN.md
+```
 
-1. Turns are the currency, but acceptance is the objective.
-2. Cut ceremony, not scope.
-3. Template-first; render, don't just extract text.
-4. Stop on an all-PASS requirements matrix, not on an exhausted budget.
-5. Never fake an external run.
+## Limitations
+
+- `delivery_check.py` handles PDFs. DOCX/PPTX need a PDF conversion or a manual review.
+- Image counting covers raster images. Vector figures need a caption text check or a visual review.
+- First-pass acceptance is logged manually. The transcript does not encode it reliably.
+- `measure.py` targets OpenCode's SQLite schema.
+- Benchmarks cover one model, one machine, and a small sample.
+
+## Roadmap
+
+- Native DOCX/PPTX delivery checks.
+- Automatic first-pass and rework inference from transcripts.
+- Template font and page-size comparison.
+- More models and harnesses.
+
+## Contributing
+
+Open an issue or pull request. Run `python -m py_compile` on the scripts and the delivery checker before submitting. Keep the skill small.
 
 ## License
 
