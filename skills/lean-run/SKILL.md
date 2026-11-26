@@ -29,14 +29,30 @@ Every row must be PASS before `DONE`. If a row cannot be satisfied, mark it BLOC
 |---|---|---|---|
 | L0 | Question, lookup, explanation | ≤2 calls | Answer directly |
 | L1 | 1 file, reversible, low risk, no user-data writes | ≤8 turns | 1 targeted check |
-| L2 | Multi-file, feature, data batch, bulk file writes | ≤40 turns | Milestone + final check + delivery gate if a document is delivered |
-| L3 | Irreversible, production, money, publish, or formal deliverable with external validation | Soft cap 80 | Full process + delivery gate + independent review |
+| L2 | Multi-file, feature, data batch, bulk file writes | ≤40 turns/phase | Milestone + final check + delivery gate if a document is delivered |
+| L3 | Irreversible, production, money, publish, or formal deliverable with external validation | Soft cap 80/phase | Full process + delivery gate + independent review |
 
 State the lane in one line. If unsure L1/L2 → L2. Bulk data writes → L2; irreversible → L3. A formal PDF/PPT/DOCX with a template or external run uses the delivery gate even at L2.
 
+### Budgets for large tasks
+
+Budgets are per **phase**, not per task. Split large work into milestones; each milestone gets its own subset of the requirements matrix and its own phase budget. The total task budget is `phases × phase budget`; split before extending.
+
+At 80% of a phase budget, run a checkpoint:
+
+- phase matrix on track → continue;
+- phase matrix not on track → split the phase, promote the lane, or extend once with a written reason (what remains, why it cannot split, new budget);
+- harness step cap reached → treat it as a phase boundary, write `HANDOFF.md` with completed/remaining rows and the next command, then resume in a new run.
+
+Budget exhaustion is **not** BLOCKED. BLOCKED means an external dependency is missing. Never silently grind past a budget, and never stop mid-deliverable without a handoff.
+
+Count turns from the harness step indicator or session stats. If the harness does not expose a count, use a proxy: tool-call batches + wall time, label it `estimated`, and apply a 1.5× margin. Never present a self-estimate as exact.
+
+A phase may overrun only with a written EXTEND/SPLIT decision. Completion and acceptance beat the budget; silent grinding and incomplete delivery are the only failures.
+
 ## 2. DONE
 
-`DONE` = every requirements-matrix row PASS + acceptance command passes. No row, no done. Do not substitute "tests pass" for "deliverable accepted".
+`DONE` = every requirements-matrix row PASS + acceptance command passes. For multi-phase tasks, DONE is per phase; the whole task is done only when every phase's rows pass. No row, no done. Do not substitute "tests pass" for "deliverable accepted".
 
 ## 3. Recon in one batch
 

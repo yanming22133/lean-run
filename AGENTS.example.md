@@ -20,7 +20,7 @@ Before classifying, build a requirements matrix: `requirement | source | evidenc
 
 If a required account, license, hardware run, or quota is missing, mark the row BLOCKED and stop. If you cannot ask (subagent/unattended), write `BLOCKED.md` with done/missing/blocker/next and deliver everything that does not depend on it.
 
-A budget is a ceiling, not a target. If the budget is exhausted and the matrix is incomplete, write a BLOCKED report and stop; do not silently grind.
+A budget is a per-phase circuit breaker, not a total-task cap. Split large tasks into phases, each with its own matrix subset and budget. Count turns from the harness step indicator or session stats. If unavailable, use tool calls + wall time as an `estimated` proxy with a 1.5× margin; never present a self-estimate as exact. At 80% of a phase budget: continue if on track, otherwise split, promote, or extend once with a written reason. If the harness step cap is reached, treat it as a phase boundary and write `HANDOFF.md` with completed/remaining rows; do not mark the task done or failed. BLOCKED is only for missing external dependencies.
 
 ## Laws
 

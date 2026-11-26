@@ -21,6 +21,10 @@ Lean Run optimizes the only metric that matters: **time to an accepted deliverab
 - **Budget precedence.** A budget is a ceiling, not a target. Exhausted budget + incomplete matrix = BLOCKED report, not silent grinding.
 - **Measurement.** Tracks turns and step time; the benchmark log records first-pass acceptance, so rework counts against speed.
 
+### Large tasks
+
+Budgets are per phase, not per task. At 80% of a phase budget, checkpoint. If the phase is short, split it, promote the lane, or extend once with a written reason; if the harness step cap is reached, write `HANDOFF.md` and resume. Overruns are allowed with a record; silent grinding and incomplete delivery are not. Stress-tested with a 6-turn budget: [`benchmarks/2026-11-26-budget.md`](benchmarks/2026-11-26-budget.md).
+
 ## Install (OpenCode)
 
 ```powershell
