@@ -128,6 +128,10 @@ def main():
     ap.add_argument("--legacy", action="store_true", help="Use the old session/message/part schema")
     ap.add_argument("--limit", type=int, default=10, help="Top requests to show")
     ap.add_argument("--out", help="Write the report to this UTF-8 file")
+    ap.add_argument("--include-children", action="store_true",
+                    help="Include subagent child sessions in totals")
+    ap.add_argument("--no-titles", action="store_true",
+                    help="Redact session titles in the report")
     args = ap.parse_args()
 
     if not os.path.exists(args.db):
@@ -138,16 +142,17 @@ def main():
     cur = con.cursor()
 
     cutoff = 0 if args.all else int((time.time() - args.days * 86400) * 1000)
+    parent_filter = "" if args.include_children else "and parent_id is null"
     if args.legacy:
         sessions = cur.execute(
-            "select id, title from session where parent_id is null and time_created >= ?",
+            f"select id, title from session where time_created >= ? {parent_filter}",
             (cutoff,),
         ).fetchall()
         iter_requests = iter_requests_legacy
         source = "legacy"
     else:
         sessions = cur.execute(
-            "select id, title from session_v2 where parent_id is null and time_created >= ?",
+            f"select id, title from session_v2 where time_created >= ? {parent_filter}",
             (cutoff,),
         ).fetchall()
         iter_requests = iter_requests_v2
@@ -236,9 +241,10 @@ def main():
 
     emit(f"Top requests by step time (limit {args.limit}):")
     for r in sorted(requests, key=lambda x: -x["step"])[: args.limit]:
+        title = "(redacted)" if args.no_titles else (r["title"] or "(untitled)")
         emit(
             f"  {r['step']/60:7.1f}m  turns={r['turns']:4}  "
-            f"bash={r['bash']:3}  task={r['task']:2}  {r['title'][:48]}"
+            f"bash={r['bash']:3}  task={r['task']:2}  {title[:48]}"
         )
     if out:
         out.close()
